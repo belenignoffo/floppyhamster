@@ -9,6 +9,13 @@ FWorld inicio_;
 
 Spout spout;
 
+// --- Variable del puerto para OSC
+int PUERTO_OSC = 12345;
+
+// --- BlobObjectTracker clases
+Receptor receptor;
+Administrador admin;
+
 //Fuente
 PFont texto;
 
@@ -71,6 +78,10 @@ PImage Hamster;
 PImage baseinicio;
 PImage semillaIni;
 
+// Fondos
+PImage [] fondosInstrucciones;
+int currentFondo, fondoLoop, fondoDelay, fondoValor;
+
 // -- Reloj
 Reloj relojInstrucciones;
 Reloj relojFinalizar;
@@ -92,6 +103,10 @@ void setup() {
   inicio_ = new FWorld();
   inicio_.setEdges();
 
+  // --- Inicializo BlobObjectTracker clases
+  setupOSC(PUERTO_OSC);
+  receptor = new Receptor();
+  admin = new Administrador(inicio_);
 
   //Sonido
   inicio = new SoundFile (this, "ambiente1.mp3");
@@ -146,12 +161,12 @@ void setup() {
 
 
   //Iniciar juego
-  estado = "Inicio";
+  estado = "Instruc";
   inicio.loop();
   inicio.amp(0.5);
 
   FondoInicio = loadImage("inicio.png");
-  Instruc = loadImage("Instruc.png");
+
   Hamster = loadImage("HamsterG.png");
   baseinicio= loadImage("baseinicio.png");
   semillaIni= loadImage("semillaIni.png");
@@ -186,33 +201,76 @@ void setup() {
   }
 
   contador = 0;
+
+  // Sprite fondos
+  currentFondo = 0;
+  fondoLoop = 8;
+  fondoDelay = 0;
+  fondoValor = 1;
+
+  fondosInstrucciones = new PImage[fondoLoop];
+  for ( int i = 0; i < fondosInstrucciones.length; i ++ ) {
+    fondosInstrucciones[i] = loadImage( "fondo" + nf(i, 2) + ".png" );
+  }
 }
 
 void draw() {
   //background(255);
 
-  //println(mouseX, mouseY);
+  println(mouseX, mouseY);
+  receptor.actualizar(mensajes);
   relojInstrucciones.actualizar();
   relojFinalizar.actualizar();
-
+  inicio_.step();
   switch(estado) {
   case "Inicio":
     image(FondoInicio, 0, 0);
     perdiste.stop();
     ganaste.stop();
-    inicio_.step();
+
     inicio_.draw();
     break;
   case "Instruc":
     p.dibujar(1);
-
-    relojInstrucciones.setTimer(5);
-    if ( relojInstrucciones.timer < 1 ) {
-      estado = "inicializaJuego";
+    image(fondosInstrucciones[currentFondo], 0, 0);
+    if (fondoDelay == 0) {
+      currentFondo = ( currentFondo + fondoValor ) % fondoLoop;
     }
-
+    fondoDelay = ( fondoDelay + 1 ) % 200 ;
     puntos = 0;
+    if ( currentFondo == 7) {
+      estado = "Sub-estado";
+    }
     reciclarVar();
+    break;
+
+  case "Sub-estado":
+    inicio_.draw();
+    image(fondosInstrucciones[7], 0, 0);
+    currentFondo = 0;
+    // x: 1402 -1465 --- y_203 - 242
+    for (Blob b : receptor.blobs) {
+      admin.actualizarPuntero(b);
+      admin.dibujar();
+      if (b.entro) {
+        println("entró 1");
+        admin.crearPuntero(b);
+        println("entró");
+      }
+      if (b.salio) {
+        println("salió 1");
+        admin.removerPuntero(b);
+        println("salió");
+      } else {
+        //println("actualizar 1");
+      }
+
+      if ( (b.centroidX * width > 1402 && b.centroidX * width < 1465)
+        && (b.centroidY * height > 203 && b.centroidY * height < 242) ) {
+        //background(255, 0, 0);
+       estado = "inicializaJuego";
+      }
+    }
     break;
   case "inicializaJuego":
     if (!juegoEstaIniciado) {
